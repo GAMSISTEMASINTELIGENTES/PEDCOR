@@ -176,6 +176,11 @@
             <button onclick="resetCart()" style="width:100%; margin-top:10px; background:none; border:none; color:#94a3b8; font-size:0.7rem; cursor:pointer; text-decoration:underline;">Limpiar selección</button>
         </div>
         <div class="form-dark">
+            <!-- ✅ NUEVO: cuadro visible para pegar el pedido — necesario en celular, donde
+                 Safari/Chrome solo muestran la opción "Pegar" sobre un campo de texto real -->
+            <label>📋 Pegar pedido de WhatsApp aquí</label>
+            <textarea id="pega-whatsapp" rows="2" placeholder="Mantén presionado aquí y toca 'Pegar'... se llena todo solo" style="width:100%; padding:8px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#cbd5e1; font-size:0.8rem; box-sizing:border-box; resize:vertical; font-family:inherit;"></textarea>
+
             <input type="text" id="in-cli" placeholder="Nombre Cliente">
 
             <!-- ✅ NUEVO: Campo de teléfono WhatsApp -->
@@ -186,9 +191,9 @@
                 <div style="flex:1">
                     <label>🚚 Tipo de Entrega</label>
                     <select id="in-tipo" onchange="toggleTipoEntrega()">
-                        <option value="recoger">🏠 Recoge pedido</option>
+                        <option value="recoger">🏠 Recoge en tienda</option>
                         <option value="domicilio">🛵 Envío a domicilio</option>
-                        <option value="mesa">🍽️ Comer aquí </option>
+                        <option value="mesa">🍽️ Comer aquí (mesa)</option>
                     </select>
                 </div>
                 <div style="flex:1">
@@ -584,49 +589,77 @@
         return { reconocidos, noReconocidos };
     }
 
-    window.addEventListener('paste', (e) => {
-        const txt = (e.clipboardData || window.clipboardData).getData('text');
-        // ✅ Regex corregidos y tolerantes a los textos reales del mensaje de WhatsApp
-        // (antes buscaban "Nombre:" y "Pago:" literales, pero el mensaje real dice
-        // "Nombre y apellido:" y "Forma de pago (...):", por eso no leía nada)
+    // ✅ Función reutilizable: interpreta el texto pegado (venga de Ctrl+V en escritorio,
+    // o de pegar en el cuadro de texto visible en celular) y llena el formulario.
+    function procesarTextoPedido(txt) {
         const n = txt.match(/Nombre[^:]*:[ \t]*(.+)/i);
         const o = txt.match(/Pedido:[ \t]*([\s\S]+?)(?:\n[ \t]*(?:Forma de pago|Pago|¿?Recoges|WhatsApp|Direcci[oó]n|Domicilio|Hora)|$)/i);
         const p = txt.match(/(?:forma de )?pago[^:]*:[ \t]*(.+)/i);
         const h = txt.match(/Hora:?[ \t]*(\d{1,2}:\d{2})/i);
         const w = txt.match(/WhatsApp[^:]*:[ \t]*(.+)/i);
-        // [^:?] evita que "¿...es a domicilio?:" (la pregunta) se confunda con la línea de dirección real
         const dir = txt.match(/(?:Direcci[oó]n|Domicilio)[^:?]*:[ \t]*(.+)/i);
         const tipoResp = txt.match(/Recoges[^:]*:[ \t]*(.+)/i);
 
-        if (n && o) {
-            resetCart();
-            const { noReconocidos } = parsePedidoTexto(o[1].trim());
-            renderCart();
-            id('in-mon').value = cart.total > 0 ? cart.total : '';
-            id('in-cli').value = n[1].trim();
-            if (w) id('in-tel').value = w[1].trim();
-            if (h) id('in-time').value = h[1].trim();
-            if (p) id('in-pay').value = p[1].trim().toUpperCase() === 'EFECTIVO' ? 'Efectivo' : p[1].trim();
+        if (!(n && o)) return false;
 
-            // ✅ Tipo de entrega: si trae dirección con contenido, o si contestó "domicilio/envío" en la pregunta
-            if (dir && dir[1].trim()) {
-                id('in-tipo').value = 'domicilio';
-                id('in-domicilio').value = dir[1].trim();
-            } else if (tipoResp && /domicilio|env[ií]o|entrega/i.test(tipoResp[1])) {
-                id('in-tipo').value = 'domicilio';
-                id('in-domicilio').value = '';
-            } else {
-                id('in-tipo').value = 'recoger';
-                id('in-domicilio').value = '';
-            }
-            toggleTipoEntrega();
+        resetCart();
+        const { noReconocidos } = parsePedidoTexto(o[1].trim());
+        renderCart();
+        id('in-mon').value = cart.total > 0 ? cart.total : '';
+        id('in-cli').value = n[1].trim();
+        if (w) id('in-tel').value = w[1].trim();
+        if (h) id('in-time').value = h[1].trim();
+        if (p) id('in-pay').value = p[1].trim().toUpperCase() === 'EFECTIVO' ? 'Efectivo' : p[1].trim();
 
-            if (noReconocidos.length > 0) {
-                notify(`📥 Pegado OK — Revisar: ${noReconocidos.join(', ')}`);
-            } else {
-                notify("📥 WhatsApp Pegado con Éxito ✅");
-            }
+        if (dir && dir[1].trim()) {
+            id('in-tipo').value = 'domicilio';
+            id('in-domicilio').value = dir[1].trim();
+        } else if (tipoResp && /domicilio|env[ií]o|entrega/i.test(tipoResp[1])) {
+            id('in-tipo').value = 'domicilio';
+            id('in-domicilio').value = '';
+        } else {
+            id('in-tipo').value = 'recoger';
+            id('in-domicilio').value = '';
         }
+        toggleTipoEntrega();
+
+        if (noReconocidos.length > 0) {
+            notify(`📥 Pegado OK — Revisar: ${noReconocidos.join(', ')}`);
+        } else {
+            notify("📥 WhatsApp Pegado con Éxito ✅");
+        }
+        return true;
+    }
+
+    // Escritorio: Ctrl+V en cualquier parte de la pantalla
+    window.addEventListener('paste', (e) => {
+        const txt = (e.clipboardData || window.clipboardData).getData('text');
+        procesarTextoPedido(txt);
+    });
+
+    // ✅ NUEVO: Celular/iPhone — Safari solo muestra "Pegar" sobre un campo de texto real,
+    // por eso se necesita este cuadro visible (mantener presionado -> Pegar).
+    id('pega-whatsapp').addEventListener('paste', (e) => {
+        const txt = (e.clipboardData || window.clipboardData).getData('text');
+        const ok = procesarTextoPedido(txt);
+        if (ok) {
+            e.preventDefault();
+            setTimeout(() => { id('pega-whatsapp').value = ''; }, 0);
+        }
+    });
+
+    // Respaldo: si en algún Safari viejo el evento 'paste' no trae los datos del portapapeles,
+    // esto detecta el texto pegado por su contenido y lo procesa igual, sin depender de clipboardData.
+    let pegaWhatsappTimeout = null;
+    id('pega-whatsapp').addEventListener('input', () => {
+        clearTimeout(pegaWhatsappTimeout);
+        pegaWhatsappTimeout = setTimeout(() => {
+            const txt = id('pega-whatsapp').value;
+            if (txt.length > 20 && /nombre/i.test(txt) && /pedido/i.test(txt)) {
+                const ok = procesarTextoPedido(txt);
+                if (ok) id('pega-whatsapp').value = '';
+            }
+        }, 400);
     });
 
     function registrar() {
@@ -914,11 +947,11 @@ ${menuLineas}
 
 👆 Para hacer tu pedido llena los siguientes datos:
 
-Nombre y un apellido:
-Pedido (separar con comas):
+Nombre y apellido:
+Pedido:
 Forma de pago (efectivo - transferencia - tarjeta):
-¿Recoge su pedido o es envío a domicilio?:
-Si es a domicilio, ponga su dirección completa:
+¿Recoges en tienda o es a domicilio?:
+Si es a domicilio, tu dirección completa:
 WhatsApp (para avisarte cuando esté listo tu pedido):`;
         const u = `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;
         navigator.clipboard.writeText(u);
@@ -928,12 +961,12 @@ WhatsApp (para avisarte cuando esté listo tu pedido):`;
     function copyWALink() {
         const msg =
 `💳 *Datos para transferencia:*
-Banco: ${Banamex}
-Cuenta/CLABE: ${5204160213715399}
-• Envíe captura de pantalla del pago para proceder a realizar su orden
-• En el concepto ponga el mismo nombre y apellido con el que realizó el pedido
+Banco: ${BANCO}
+Cuenta/CLABE: ${NUMERO_CUENTA}
+• Envía captura de pantalla del pago
+• En el concepto pon tu *nombre y apellido* con el que realizaste tu pedido
 
-⚠️ *Nota importante:* si no se nos refleja el depósito de la transferencia, NO SE HARÁ ENTREGARÁ EL PEDIDO.`;
+⚠️ *Nota importante:* si no se nos refleja el depósito de la transferencia, NO SE HARÁ ENTREGA DEL PEDIDO.`;
         navigator.clipboard.writeText(msg);
         notify("💳 Info Transferencia Copiada");
     }
