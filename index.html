@@ -186,9 +186,9 @@
                 <div style="flex:1">
                     <label>🚚 Tipo de Entrega</label>
                     <select id="in-tipo" onchange="toggleTipoEntrega()">
-                        <option value="recoger">🏠 Recoge en tienda</option>
+                        <option value="recoger">🏠 Recoge pedido</option>
                         <option value="domicilio">🛵 Envío a domicilio</option>
-                        <option value="mesa">🍽️ Comer aquí (mesa)</option>
+                        <option value="mesa">🍽️ Comer aquí </option>
                     </select>
                 </div>
                 <div style="flex:1">
@@ -914,11 +914,11 @@ ${menuLineas}
 
 👆 Para hacer tu pedido llena los siguientes datos:
 
-Nombre y apellido:
-Pedido:
+Nombre y un apellido:
+Pedido (separar con comas):
 Forma de pago (efectivo - transferencia - tarjeta):
-¿Recoges en tienda o es a domicilio?:
-Si es a domicilio, tu dirección completa:
+¿Recoge su pedido o es envío a domicilio?:
+Si es a domicilio, ponga su dirección completa:
 WhatsApp (para avisarte cuando esté listo tu pedido):`;
         const u = `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;
         navigator.clipboard.writeText(u);
@@ -928,12 +928,12 @@ WhatsApp (para avisarte cuando esté listo tu pedido):`;
     function copyWALink() {
         const msg =
 `💳 *Datos para transferencia:*
-Banco: ${BANCO}
-Cuenta/CLABE: ${NUMERO_CUENTA}
-• Envía captura de pantalla del pago
-• En el concepto pon tu *nombre y apellido* con el que realizaste tu pedido
+Banco: ${Banamex}
+Cuenta/CLABE: ${5204160213715399}
+• Envíe captura de pantalla del pago para proceder a realizar su orden
+• En el concepto ponga el mismo nombre y apellido con el que realizó el pedido
 
-⚠️ *Nota importante:* si no se nos refleja el depósito de la transferencia, NO SE HARÁ ENTREGA DEL PEDIDO.`;
+⚠️ *Nota importante:* si no se nos refleja el depósito de la transferencia, NO SE HARÁ ENTREGARÁ EL PEDIDO.`;
         navigator.clipboard.writeText(msg);
         notify("💳 Info Transferencia Copiada");
     }
