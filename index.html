@@ -290,31 +290,126 @@
         'Agua':                   35,
     };
 
-    // *** KEYWORDS — agrega sinónimos o errores comunes aquí ***
-    const MENU_KEYWORDS = [
-        { item: 'Dorada Asada',        kw: ['dorada.*asada', 'dorada de asada'] },
-        { item: 'Dorada Chorizo',       kw: ['dorada.*chorizo', 'dorada de chorizo'] },
-        { item: 'Dorada Mixta',         kw: ['dorada.*mix', 'dorada mixta', 'dorada.*asada.*chorizo', 'dorada.*chorizo.*asada'] },
-        { item: 'Sincronizada Asada',   kw: ['sinc.*asada', 'sincronizada.*asada', 'sincornizada.*asada'] },
-        { item: 'Sincronizada Chorizo', kw: ['sinc.*chorizo', 'sincronizada.*chorizo', 'sincornizada.*chorizo'] },
-        { item: 'Sincronizada Mixta',   kw: ['sinc', 'sincronizada', 'sincornizada', 'sinconizada'] },
-        { item: 'Quesadilla Asada',     kw: ['quesadilla.*asada', 'quesadilla de asada'] },
-        { item: 'Quesadilla Chorizo',   kw: ['quesadilla.*chorizo', 'quesadilla de chorizo'] },
-        { item: 'Quesadilla Mixta',     kw: ['quesadilla.*mix', 'quesadilla mixta'] },
-        { item: 'Quesadilla Asada',     kw: ['quesadilla'] },
-        { item: 'Taco Asada Grande',    kw: ['taco.*asada.*grand', 'taco.*grand.*asada'] },
-        { item: 'Taco Chorizo Grande',  kw: ['taco.*chorizo.*grand', 'taco.*grand.*chorizo'] },
-        { item: 'Taco Mixto Grande',    kw: ['taco.*mix.*grand', 'taco.*grand.*mix'] },
-        { item: 'Taco Asada Chico',     kw: ['taco.*asada', 'taco de asada'] },
-        { item: 'Taco Chorizo Chico',   kw: ['taco.*chorizo', 'taco de chorizo'] },
-        { item: 'Taco Mixto Chico',     kw: ['taco.*mix', 'taco mixto', 'taco.*asada.*chorizo', 'taco.*chorizo.*asada'] },
-        { item: 'Taco Asada Chico',     kw: ['taco'] },
-        { item: 'Refresco',             kw: ['refresco'] },
-        { item: 'Agua',                 kw: ['agua'] },
-    ];
-
+    // *** RECONOCIMIENTO DE PEDIDOS — tolerante a errores de dedo, acentos, mayúsculas y puntuación ***
+    // En vez de una lista fija de patrones exactos, esto compara cada palabra escrita por el cliente
+    // contra las palabras "correctas" del menú usando distancia de edición (tolera 1-2 letras de error).
     const WORD_NUMS = { 'un':1,'una':1,'uno':1,'dos':2,'tres':3,'cuatro':4,'cinco':5,'seis':6,'siete':7,'ocho':8,'nueve':9,'diez':10 };
-    const NOTA_WORDS = ['sin','con','solo','puro','pura','extra','bien','poco','todo','preparada'];
+
+    const BASE_WORDS = {
+        taco:         ['taco', 'tacos'],
+        quesadilla:   ['quesadilla', 'quesadillas'],
+        sincronizada: ['sincronizada', 'sincronizadas', '=sinc'], // "=sinc" exige coincidencia EXACTA (si no, choca con la palabra "sin")
+        dorada:       ['dorada', 'doradas'],
+        refresco:     ['refresco', 'refrescos'],
+        agua:         ['agua', 'aguas'],
+    };
+    const RELLENO_WORDS = {
+        asada:   ['asada', 'asado'],
+        chorizo: ['chorizo', 'chorizos'],
+        mixto:   ['mixto', 'mixta', 'mixtos', 'mixtas'],
+    };
+    const TAMANO_WORDS = {
+        chico:  ['chico', 'chica', 'chicos', 'chicas', 'pequeno', 'pequena', 'peque'],
+        grande: ['grande', 'grandes'],
+    };
+    const STOPWORDS = new Set(['de', 'del', 'la', 'el', 'los', 'las']); // palabras de relleno gramatical, se ignoran
+
+    // Distancia de Levenshtein — cuántas letras hay que cambiar para convertir una palabra en otra
+    function levenshtein(a, b) {
+        const m = a.length, n = b.length;
+        if (m === 0) return n;
+        if (n === 0) return m;
+        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+            }
+        }
+        return dp[m][n];
+    }
+    function normalizarTexto(s) {
+        return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); // quita acentos y pasa a minúsculas
+    }
+    function distanciaMax(palabra) {
+        if (palabra.length <= 5) return 1;
+        if (palabra.length <= 9) return 1;
+        return 2;
+    }
+    function coincideVariante(palabraNorm, variante) {
+        if (variante.startsWith('=')) return palabraNorm === variante.slice(1); // coincidencia exacta obligatoria
+        if (palabraNorm === variante) return true;
+        if (palabraNorm.length < 3) return false; // evita falsos positivos con palabras muy cortas
+        return levenshtein(palabraNorm, variante) <= distanciaMax(variante);
+    }
+    function detectarCategoria(palabraNorm, diccionario) {
+        for (const [clave, variantes] of Object.entries(diccionario)) {
+            if (variantes.some(v => coincideVariante(palabraNorm, v))) return clave;
+        }
+        return null;
+    }
+
+    // Analiza un fragmento de texto (ej. "un taco de asada sin verdura") y determina
+    // qué producto es, la cantidad, y qué palabras sobran (esas se vuelven la nota).
+    function analizarItem(subparte) {
+        const palabrasOriginales = subparte.trim().split(/\s+/).filter(Boolean);
+        let qty = 1, qtyConsumido = false, base = null, relleno = null, tamano = null;
+        const consumidos = new Set();
+
+        palabrasOriginales.forEach((palabraOriginal, idx) => {
+            const norm = normalizarTexto(palabraOriginal.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, ''));
+            if (!norm) { consumidos.add(idx); return; }
+
+            if (!qtyConsumido) {
+                if (/^\d+$/.test(norm)) { qty = parseInt(norm, 10); consumidos.add(idx); qtyConsumido = true; return; }
+                if (WORD_NUMS[norm] !== undefined) { qty = WORD_NUMS[norm]; consumidos.add(idx); qtyConsumido = true; return; }
+            }
+            if (!base) { const b = detectarCategoria(norm, BASE_WORDS); if (b) { base = b; consumidos.add(idx); return; } }
+            if (!relleno) { const r = detectarCategoria(norm, RELLENO_WORDS); if (r) { relleno = r; consumidos.add(idx); return; } }
+            if (!tamano) { const t = detectarCategoria(norm, TAMANO_WORDS); if (t) { tamano = t; consumidos.add(idx); return; } }
+            if (STOPWORDS.has(norm)) { consumidos.add(idx); return; }
+        });
+
+        let itemFinal = null;
+        if (base === 'refresco') itemFinal = 'Refresco';
+        else if (base === 'agua') itemFinal = 'Agua';
+        else if (base === 'taco') {
+            const rell = relleno === 'chorizo' ? 'Chorizo' : relleno === 'mixto' ? 'Mixto' : 'Asada';
+            const tam = tamano === 'grande' ? 'Grande' : 'Chico';
+            itemFinal = `Taco ${rell} ${tam}`;
+        } else if (base === 'quesadilla') {
+            const rell = relleno === 'chorizo' ? 'Chorizo' : relleno === 'mixto' ? 'Mixta' : 'Asada';
+            itemFinal = `Quesadilla ${rell}`;
+        } else if (base === 'sincronizada') {
+            const rell = relleno === 'chorizo' ? 'Chorizo' : relleno === 'mixto' ? 'Mixta' : 'Asada';
+            itemFinal = `Sincronizada ${rell}`;
+        } else if (base === 'dorada') {
+            const rell = relleno === 'chorizo' ? 'Chorizo' : relleno === 'mixto' ? 'Mixta' : 'Asada';
+            itemFinal = `Dorada ${rell}`;
+        }
+
+        let notaPalabras = palabrasOriginales.filter((_, idx) => !consumidos.has(idx));
+        // Quita una "y" suelta al inicio/final (queda como residuo al separar por cantidades)
+        if (notaPalabras.length && normalizarTexto(notaPalabras[notaPalabras.length - 1]) === 'y') notaPalabras = notaPalabras.slice(0, -1);
+        if (notaPalabras.length && normalizarTexto(notaPalabras[0]) === 'y') notaPalabras = notaPalabras.slice(1);
+
+        return { itemFinal, qty, nota: notaPalabras.join(' ').trim() };
+    }
+
+    // Inserta una separación "virtual" antes de cada cantidad (número o palabra numérica) que
+    // aparezca en medio del texto — así se detectan varios productos aunque el cliente no use comas.
+    function insertarSeparadoresPorCantidad(texto) {
+        const patron = /\b(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/gi;
+        let resultado = '', ultimo = 0, primero = true, m;
+        while ((m = patron.exec(texto)) !== null) {
+            if (!primero) { resultado += texto.slice(ultimo, m.index) + ' , '; ultimo = m.index; }
+            primero = false;
+        }
+        resultado += texto.slice(ultimo);
+        return resultado;
+    }
 
     let pedidos = JSON.parse(localStorage.getItem('gam_v13_db')) || [];
     let auditoria = JSON.parse(localStorage.getItem('gam_v13_aud')) || [];
@@ -445,87 +540,43 @@
         if (tipo !== 'mesa') id('in-mesa').value = '';
     }
 
-    function esNota(texto) {
-        const t = texto.trim().toLowerCase();
-        return NOTA_WORDS.some(w => t.startsWith(w));
-    }
-
     function parsePedidoTexto(texto) {
-        // Dividir SOLO por comas — no por "y" ya que puede estar dentro de una nota
-        const subpartes = texto.split(',').map(s => s.trim()).filter(Boolean);
+        // ✅ Inserta separadores antes de cada cantidad, y divide por coma, punto, punto y coma,
+        // salto de línea o guion — así reconoce varios productos aunque el cliente no use comas.
+        const textoConSeparadores = insertarSeparadoresPorCantidad(texto);
+        const subpartes = textoConSeparadores.split(/,|\n|;|\.| - /).map(s => s.trim()).filter(Boolean);
         const partes = [];
 
         subpartes.forEach(sub => {
-            const tieneKeyword = MENU_KEYWORDS.some(({ kw }) =>
-                kw.some(k => new RegExp(k, 'i').test(sub))
-            );
-            const tieneNumero = /^\d+/.test(sub) || Object.keys(WORD_NUMS).some(w => sub.toLowerCase().startsWith(w + ' '));
-            const esItemNuevo = tieneKeyword || (tieneNumero && !esNota(sub));
-
-            if (esItemNuevo) {
-                partes.push({ item: sub, notas: [] });
+            const analisis = analizarItem(sub);
+            if (analisis.itemFinal) {
+                partes.push({ itemFinal: analisis.itemFinal, qty: analisis.qty, notas: analisis.nota ? [analisis.nota] : [] });
             } else if (partes.length > 0) {
-                // Es nota del ítem anterior — puede tener "y" dentro, se guarda completo
-                partes[partes.length - 1].notas.push(sub);
+                // Es nota del ítem anterior (no se reconoció ningún producto en este fragmento)
+                partes[partes.length - 1].notas.push(sub.trim());
             } else {
-                partes.push({ item: sub, notas: [] });
+                partes.push({ itemFinal: null, qty: 1, notas: [], original: sub });
             }
         });
 
         const reconocidos = [];
         const noReconocidos = [];
 
-        partes.forEach(({ item, notas }) => {
-            const lower = item.toLowerCase();
-
-            // Detectar cantidad
-            let qty = 1;
-            const numMatch = lower.match(/^(\d+)/);
-            if (numMatch) {
-                qty = parseInt(numMatch[1]);
-            } else {
-                for (const [word, val] of Object.entries(WORD_NUMS)) {
-                    if (lower.startsWith(word + ' ') || lower === word) { qty = val; break; }
-                }
-            }
-
-            // Detectar ítem del menú
-            let itemEncontrado = null;
-            for (const { item: menuItem, kw } of MENU_KEYWORDS) {
-                if (kw.some(k => new RegExp(k, 'i').test(lower))) {
-                    itemEncontrado = menuItem;
-                    break;
-                }
-            }
-
-            if (itemEncontrado) {
-                // Extraer nota inline del ítem (lo que viene después del keyword) + notas separadas por coma
-                let notaInline = '';
-                for (const { kw } of MENU_KEYWORDS.filter(m => m.item === itemEncontrado)) {
-                    for (const k of kw) {
-                        const match = lower.match(new RegExp(k, 'i'));
-                        if (match) {
-                            notaInline = item.substring(match.index + match[0].length).trim();
-                            notaInline = notaInline.replace(/^[\s,\-de]+/i, '').trim();
-                            break;
-                        }
-                    }
-                    if (notaInline) break;
-                }
-                const todasNotas = [notaInline, ...notas].filter(Boolean).join(', ');
-
+        partes.forEach(p => {
+            if (p.itemFinal) {
+                const todasNotas = p.notas.filter(Boolean).join(', ');
                 const keyExacta = Object.keys(cart.items).find(k =>
-                    (cart.items[k].displayName || k) === itemEncontrado && cart.items[k].nota === todasNotas
+                    (cart.items[k].displayName || k) === p.itemFinal && cart.items[k].nota === todasNotas
                 );
                 if (keyExacta) {
-                    cart.items[keyExacta].qty += qty;
+                    cart.items[keyExacta].qty += p.qty;
                 } else {
-                    const key = todasNotas ? `${itemEncontrado}__${Date.now()}` : itemEncontrado;
-                    cart.items[key] = { qty, price: MENU[itemEncontrado], nota: todasNotas, plato: null, displayName: itemEncontrado };
+                    const key = todasNotas ? `${p.itemFinal}__${Date.now()}_${Math.random().toString(36).slice(2)}` : p.itemFinal;
+                    cart.items[key] = { qty: p.qty, price: MENU[p.itemFinal], nota: todasNotas, plato: null, displayName: p.itemFinal };
                 }
-                reconocidos.push(itemEncontrado);
+                reconocidos.push(p.itemFinal);
             } else {
-                noReconocidos.push(item);
+                noReconocidos.push(p.original);
             }
         });
 
@@ -535,13 +586,17 @@
 
     window.addEventListener('paste', (e) => {
         const txt = (e.clipboardData || window.clipboardData).getData('text');
-        // Regex tolerante: Hora con o sin ":" y Monto vacío permitido
-        const n = txt.match(/Nombre:\s*(.+)/i);
-        const o = txt.match(/Pedido:\s*(.+)/i);
-        const p = txt.match(/Pago:\s*(.+)/i);
-        const h = txt.match(/Hora:?\s*(\d{1,2}:\d{2})/i);
-        const w = txt.match(/WhatsApp[^:]*:\s*(.+)/i);
-        const dir = txt.match(/(?:Direcci[oó]n|Domicilio)[^:]*:\s*(.+)/i);
+        // ✅ Regex corregidos y tolerantes a los textos reales del mensaje de WhatsApp
+        // (antes buscaban "Nombre:" y "Pago:" literales, pero el mensaje real dice
+        // "Nombre y apellido:" y "Forma de pago (...):", por eso no leía nada)
+        const n = txt.match(/Nombre[^:]*:[ \t]*(.+)/i);
+        const o = txt.match(/Pedido:[ \t]*([\s\S]+?)(?:\n[ \t]*(?:Forma de pago|Pago|¿?Recoges|WhatsApp|Direcci[oó]n|Domicilio|Hora)|$)/i);
+        const p = txt.match(/(?:forma de )?pago[^:]*:[ \t]*(.+)/i);
+        const h = txt.match(/Hora:?[ \t]*(\d{1,2}:\d{2})/i);
+        const w = txt.match(/WhatsApp[^:]*:[ \t]*(.+)/i);
+        // [^:?] evita que "¿...es a domicilio?:" (la pregunta) se confunda con la línea de dirección real
+        const dir = txt.match(/(?:Direcci[oó]n|Domicilio)[^:?]*:[ \t]*(.+)/i);
+        const tipoResp = txt.match(/Recoges[^:]*:[ \t]*(.+)/i);
 
         if (n && o) {
             resetCart();
@@ -553,10 +608,13 @@
             if (h) id('in-time').value = h[1].trim();
             if (p) id('in-pay').value = p[1].trim().toUpperCase() === 'EFECTIVO' ? 'Efectivo' : p[1].trim();
 
-            // ✅ Si el pegado trae dirección, marcar automáticamente como envío a domicilio
+            // ✅ Tipo de entrega: si trae dirección con contenido, o si contestó "domicilio/envío" en la pregunta
             if (dir && dir[1].trim()) {
                 id('in-tipo').value = 'domicilio';
                 id('in-domicilio').value = dir[1].trim();
+            } else if (tipoResp && /domicilio|env[ií]o|entrega/i.test(tipoResp[1])) {
+                id('in-tipo').value = 'domicilio';
+                id('in-domicilio').value = '';
             } else {
                 id('in-tipo').value = 'recoger';
                 id('in-domicilio').value = '';
