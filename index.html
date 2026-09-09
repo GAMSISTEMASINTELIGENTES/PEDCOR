@@ -271,7 +271,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:8px;">
                 <div>
                     <button onclick="exportarRespaldo()" style="color:#0f172a; background:none; border:none; cursor:pointer; font-size:0.75rem; text-decoration:underline; padding:0; margin-right:14px;">⬇️ Exportar respaldo</button>
-                    <button onclick="id('input-importar').click()" style="color:#0f172a; background:none; border:none; cursor:pointer; font-size:0.75rem; text-decoration:underline; padding:0;">⬆️ Importar respaldo</button>
+                    <button onclick="document.getElementById('input-importar').click()" style="color:#0f172a; background:none; border:none; cursor:pointer; font-size:0.75rem; text-decoration:underline; padding:0;">⬆️ Importar respaldo</button>
                     <input type="file" id="input-importar" accept=".json" style="display:none;" onchange="importarRespaldo(event)">
                 </div>
                 <button onclick="clearHistory()" style="color:#e11d48; background:none; border:none; cursor:pointer; font-size:0.75rem;">Limpiar Historial del Día</button>
