@@ -125,7 +125,6 @@
                 <select id="c-tipo" onchange="toggleCampos()">
                     <option value="recoger">🏠 Recoger en tienda</option>
                     <option value="domicilio">🛵 Envío a domicilio</option>
-                    <option value="mesa">🍽️ Comer aquí (mesa)</option>
                 </select>
             </div>
             <div>
@@ -141,11 +140,6 @@
         <div id="wrap-direccion" style="display:none;">
             <label>📍 Dirección completa</label>
             <textarea id="c-direccion" rows="2" placeholder="Calle, número, colonia, referencias..."></textarea>
-        </div>
-
-        <div id="wrap-mesa" style="display:none;">
-            <label>🔢 Número de mesa</label>
-            <input type="text" id="c-mesa" placeholder="Ej. 5" inputmode="numeric">
         </div>
     </div>
 </div>
@@ -274,7 +268,6 @@
     function toggleCampos() {
         const tipo = id('c-tipo').value;
         id('wrap-direccion').style.display = tipo === 'domicilio' ? 'block' : 'none';
-        id('wrap-mesa').style.display = tipo === 'mesa' ? 'block' : 'none';
     }
 
     function enviarPedido() {
@@ -283,22 +276,18 @@
         const pago = id('c-pago').value;
         const tipo = id('c-tipo').value;
         const direccion = id('c-direccion').value.trim();
-        const mesa = id('c-mesa').value.trim();
 
         if (Object.keys(cart.items).length === 0) return alert('Agrega al menos un producto a tu pedido');
         if (!nombre) return alert('Escribe tu nombre y apellido');
         if (!tel || tel.length < 10) return alert('Escribe tu número de WhatsApp (10 dígitos)');
         if (tipo === 'domicilio' && !direccion) return alert('Escribe tu dirección completa');
-        if (tipo === 'mesa' && !mesa) return alert('Escribe tu número de mesa');
 
         const itemsTexto = Object.values(cart.items).map(it => {
             const nota = it.nota ? ` (${it.nota})` : '';
             return `${it.qty}x ${it.nombre}${nota}`;
         }).join(', ');
 
-        let tipoTexto = 'Recojo en tienda';
-        if (tipo === 'domicilio') tipoTexto = 'Es a domicilio';
-        else if (tipo === 'mesa') tipoTexto = 'Comer aquí';
+        const tipoTexto = tipo === 'domicilio' ? 'Es a domicilio' : 'Recojo en tienda';
 
         let mensaje =
 `🎫 *NUEVO PEDIDO*
@@ -308,8 +297,6 @@ Pedido: ${itemsTexto}
 Forma de pago: ${pago}
 ¿Recoges en tienda o es a domicilio?: ${tipoTexto}
 Si es a domicilio, tu dirección completa: ${tipo === 'domicilio' ? direccion : ''}`;
-
-        if (tipo === 'mesa') mensaje += `\nMesa: ${mesa}`;
 
         mensaje += `\nWhatsApp: ${tel}
 
