@@ -267,33 +267,11 @@
 
 <div class="app-footer">App desarrollada por <b>GAM SISTEMAS INTELIGENTES</b></div>
 
+<!-- Configuración compartida: nombre del negocio, número de WhatsApp y menú -->
+<script src="menu-config.js"></script>
 <script>
     // *** MENÚ — edita precios aquí ***
-    const MENU = {
-        // Tacos chicos
-        'Taco Asada Chico':       18,
-        'Taco Chorizo Chico':     18,
-        'Taco Mixto Chico':       18,
-        // Tacos grandes
-        'Taco Asada Grande':      25,
-        'Taco Chorizo Grande':    25,
-        'Taco Mixto Grande':      25,
-        // Quesadillas
-        'Quesadilla Asada':       45,
-        'Quesadilla Chorizo':     45,
-        'Quesadilla Mixta':       45,
-        // Sincronizadas
-        'Sincronizada Asada':     80,
-        'Sincronizada Chorizo':   80,
-        'Sincronizada Mixta':     80,
-        // Doradas preparadas
-        'Dorada Asada':           55,
-        'Dorada Chorizo':         55,
-        'Dorada Mixta':           55,
-        // Bebidas
-        'Refresco':               20,
-        'Agua':                   35,
-    };
+    // El objeto MENU ahora viene de menu-config.js (compartido con pedido.html)
 
     // *** RECONOCIMIENTO DE PEDIDOS — tolerante a errores de dedo, acentos, mayúsculas y puntuación ***
     // En vez de una lista fija de patrones exactos, esto compara cada palabra escrita por el cliente
@@ -368,7 +346,7 @@
             if (!norm) { consumidos.add(idx); return; }
 
             if (!qtyConsumido) {
-                if (/^\d+$/.test(norm)) { qty = parseInt(norm, 10); consumidos.add(idx); qtyConsumido = true; return; }
+                if (/^\d+x?$/.test(norm)) { qty = parseInt(norm, 10); consumidos.add(idx); qtyConsumido = true; return; }
                 if (WORD_NUMS[norm] !== undefined) { qty = WORD_NUMS[norm]; consumidos.add(idx); qtyConsumido = true; return; }
             }
             if (!base) { const b = detectarCategoria(norm, BASE_WORDS); if (b) { base = b; consumidos.add(idx); return; } }
@@ -400,7 +378,8 @@
         if (notaPalabras.length && normalizarTexto(notaPalabras[notaPalabras.length - 1]) === 'y') notaPalabras = notaPalabras.slice(0, -1);
         if (notaPalabras.length && normalizarTexto(notaPalabras[0]) === 'y') notaPalabras = notaPalabras.slice(1);
 
-        return { itemFinal, qty, nota: notaPalabras.join(' ').trim() };
+        const nota = notaPalabras.join(' ').replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+        return { itemFinal, qty, nota };
     }
 
     // Inserta una separación "virtual" antes de cada cantidad (número o palabra numérica) que
@@ -593,12 +572,13 @@
     // o de pegar en el cuadro de texto visible en celular) y llena el formulario.
     function procesarTextoPedido(txt) {
         const n = txt.match(/Nombre[^:]*:[ \t]*(.+)/i);
-        const o = txt.match(/Pedido:[ \t]*([\s\S]+?)(?:\n[ \t]*(?:Forma de pago|Pago|¿?Recoges|WhatsApp|Direcci[oó]n|Domicilio|Hora)|$)/i);
+        const o = txt.match(/Pedido:[ \t]*([\s\S]+?)(?:\n[ \t]*(?:Forma de pago|Pago|¿?Recoges|WhatsApp|Direcci[oó]n|Domicilio|Mesa|Hora)|$)/i);
         const p = txt.match(/(?:forma de )?pago[^:]*:[ \t]*(.+)/i);
         const h = txt.match(/Hora:?[ \t]*(\d{1,2}:\d{2})/i);
         const w = txt.match(/WhatsApp[^:]*:[ \t]*(.+)/i);
         const dir = txt.match(/(?:Direcci[oó]n|Domicilio)[^:?]*:[ \t]*(.+)/i);
         const tipoResp = txt.match(/Recoges[^:]*:[ \t]*(.+)/i);
+        const mesaResp = txt.match(/^Mesa:?[ \t]*(\S+)/im);
 
         if (!(n && o)) return false;
 
@@ -611,9 +591,14 @@
         if (h) id('in-time').value = h[1].trim();
         if (p) id('in-pay').value = p[1].trim().toUpperCase() === 'EFECTIVO' ? 'Efectivo' : p[1].trim();
 
+        // ✅ Ahora también detecta "Comer aquí / mesa" (viene del menú interactivo pedido.html)
         if (dir && dir[1].trim()) {
             id('in-tipo').value = 'domicilio';
             id('in-domicilio').value = dir[1].trim();
+        } else if (mesaResp || (tipoResp && /mesa|comer aqu[ií]/i.test(tipoResp[1]))) {
+            id('in-tipo').value = 'mesa';
+            id('in-domicilio').value = '';
+            id('in-mesa').value = mesaResp ? mesaResp[1].trim() : '';
         } else if (tipoResp && /domicilio|env[ií]o|entrega/i.test(tipoResp[1])) {
             id('in-tipo').value = 'domicilio';
             id('in-domicilio').value = '';
@@ -862,7 +847,7 @@
         const estadoMsg = p.tipo === 'domicilio'
             ? 'Tu pedido acaba de ser enviado a tu domicilio.'
             : 'Tu pedido está listo.';
-        const msg = `*TAQUERÍA EL DIRECTOR*\n¡Hola ${p.cliente}!\n\n${estadoMsg}\nOrden: ${p.orden}\nTotal: $${p.monto} MXN${entregaInfo}\n\n¡Gracias por tu preferencia!`;
+        const msg = `*${NOMBRE_NEGOCIO}*\n¡Hola ${p.cliente}!\n\n${estadoMsg}\nOrden: ${p.orden}\nTotal: $${p.monto} MXN${entregaInfo}\n\n¡Gracias por tu preferencia!`;
 
         if (p.tel) {
             // Limpiar el número (quitar espacios, guiones, paréntesis)
@@ -940,22 +925,18 @@
     function copyMenuMsg() {
         const n = localStorage.getItem('gam_wa_phone') || id('wa-phone').value.trim();
         if(!n) return alert("Guarda un número primero");
-        const menuLineas = Object.entries(MENU).map(([nombre, precio]) => `  • ${nombre}: $${precio}`).join('\n');
+        // ✅ Ahora se manda el LINK al menú interactivo (pedido.html) en vez del
+        // formulario de texto — el cliente selecciona del menú y el pedido
+        // regresa ya formado, sin que tenga que escribir nada a mano.
+        const linkPedido = URL_MENU_PUBLICO;
         const msg =
-`🌮 *MENÚ Y PRECIOS:*
-${menuLineas}
+`🌮 ¡Hola! Aquí puedes ver el menú y armar tu pedido:
+${linkPedido}
 
-👆 Para hacer tu pedido llena los siguientes datos:
-
-Nombre y apellido:
-Pedido:
-Forma de pago (efectivo - transferencia - tarjeta):
-¿Recoges en tienda o es a domicilio?:
-Si es a domicilio, tu dirección completa:
-WhatsApp (para avisarte cuando esté listo tu pedido):`;
+Selecciona lo que quieras, llena tus datos, y al final se te genera tu pedido listo para enviarlo por WhatsApp 😉`;
         const u = `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;
         navigator.clipboard.writeText(u);
-        notify("🌮 Link Menú + Pedido Copiado");
+        notify("🌮 Link del Menú Copiado");
     }
 
     function copyWALink() {

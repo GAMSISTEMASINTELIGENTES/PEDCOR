@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Haz tu pedido</title>
+<script src="menu-config.js"></script>
+<style>
+    :root { --primary: #0f172a; --accent: #10b981; --bg: #f1f5f9; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: #1e293b;
+        padding-bottom: 90px; /* espacio para la barra flotante de abajo */
+    }
+    header {
+        background: var(--primary);
+        color: white;
+        padding: 22px 18px 26px;
+        text-align: center;
+    }
+    header h1 { font-size: 1.3rem; font-weight: 800; }
+    header p { color: #94a3b8; font-size: 0.8rem; margin-top: 4px; }
+
+    .seccion { padding: 18px; }
+    .seccion h2 { font-size: 1rem; margin-bottom: 12px; color: #0f172a; }
+
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .menu-item {
+        background: white; border-radius: 12px; padding: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        display: flex; flex-direction: column; gap: 6px;
+    }
+    .menu-item .nombre { font-size: 0.82rem; font-weight: 700; line-height: 1.25; min-height: 2.1em; }
+    .menu-item .precio { color: var(--accent); font-weight: 800; font-size: 0.95rem; }
+    .btn-add {
+        background: var(--primary); color: white; border: none; border-radius: 8px;
+        padding: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; width: 100%;
+    }
+    .qty-control {
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--bg); border-radius: 8px; padding: 4px;
+    }
+    .qty-control button {
+        width: 30px; height: 30px; border: none; border-radius: 6px; background: var(--primary);
+        color: white; font-size: 1.1rem; font-weight: 700; cursor: pointer;
+    }
+    .qty-control span { font-weight: 800; font-size: 0.95rem; }
+
+    .carrito-card {
+        background: white; border-radius: 12px; padding: 14px; margin-bottom: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .carrito-empty { text-align:center; color:#94a3b8; font-size:0.85rem; padding: 18px 0; }
+    .carrito-row { display:flex; align-items:center; gap:10px; padding: 8px 0; border-bottom: 1px solid #eef2f7; }
+    .carrito-row:last-child { border-bottom: none; }
+    .carrito-row .info { flex: 1; }
+    .carrito-row .info b { font-size: 0.85rem; }
+    .carrito-row .info .sub-precio { font-size: 0.72rem; color: #94a3b8; }
+    .nota-input {
+        width: 100%; margin-top: 6px; padding: 6px 8px; border-radius: 6px;
+        border: 1px solid #e2e8f0; font-size: 0.75rem; box-sizing: border-box;
+    }
+    .btn-quitar { background:none; border:none; color:#ef4444; font-size:0.7rem; cursor:pointer; text-decoration:underline; margin-top:4px; }
+
+    label { display:block; font-size: 0.78rem; font-weight: 700; color:#475569; margin: 12px 0 5px; }
+    input[type=text], input[type=tel], select, textarea {
+        width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #cbd5e1;
+        font-size: 0.9rem; box-sizing: border-box; background: white; font-family: inherit;
+    }
+    .row2 { display:flex; gap:8px; }
+    .row2 > div { flex:1; }
+
+    .total-bar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: var(--primary); color: white;
+        padding: 12px 16px; display:flex; align-items:center; justify-content:space-between; gap: 12px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+        z-index: 50;
+    }
+    .total-bar .info-total { font-size: 0.8rem; color:#94a3b8; }
+    .total-bar .monto-total { font-size: 1.15rem; font-weight: 800; color: var(--accent); }
+    .btn-enviar {
+        background: var(--accent); color: var(--primary); border:none; border-radius: 10px;
+        padding: 12px 18px; font-weight: 800; font-size: 0.9rem; cursor:pointer; white-space:nowrap;
+    }
+    .btn-enviar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .footer-credito { text-align:center; padding: 16px; color:#94a3b8; font-size:0.7rem; }
+    .footer-credito b { color:#64748b; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1 id="nombre-negocio-header">Cargando...</h1>
+    <p>Selecciona tus productos y arma tu pedido</p>
+</header>
+
+<div class="seccion">
+    <h2>🌮 Menú</h2>
+    <div class="menu-grid" id="menu-grid"></div>
+</div>
+
+<div class="seccion">
+    <h2>🛒 Tu pedido</h2>
+    <div class="carrito-card">
+        <div id="carrito-lista"><div class="carrito-empty">Todavía no has agregado nada</div></div>
+    </div>
+</div>
+
+<div class="seccion">
+    <h2>📋 Tus datos</h2>
+    <div class="carrito-card">
+        <label>Nombre y apellido *</label>
+        <input type="text" id="c-nombre" placeholder="Ej. Juan Pérez">
+
+        <label>WhatsApp (10 dígitos) *</label>
+        <input type="tel" id="c-tel" placeholder="Ej. 3131234567" maxlength="10">
+
+        <div class="row2">
+            <div>
+                <label>🚚 Tipo de entrega *</label>
+                <select id="c-tipo" onchange="toggleCampos()">
+                    <option value="recoger">🏠 Recoger en tienda</option>
+                    <option value="domicilio">🛵 Envío a domicilio</option>
+                    <option value="mesa">🍽️ Comer aquí (mesa)</option>
+                </select>
+            </div>
+            <div>
+                <label>💳 Forma de pago *</label>
+                <select id="c-pago">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="wrap-direccion" style="display:none;">
+            <label>📍 Dirección completa</label>
+            <textarea id="c-direccion" rows="2" placeholder="Calle, número, colonia, referencias..."></textarea>
+        </div>
+
+        <div id="wrap-mesa" style="display:none;">
+            <label>🔢 Número de mesa</label>
+            <input type="text" id="c-mesa" placeholder="Ej. 5" inputmode="numeric">
+        </div>
+    </div>
+</div>
+
+<div class="footer-credito">PEDCOR — desarrollado por <b>GAM SISTEMAS INTELIGENTES</b></div>
+
+<div class="total-bar">
+    <div>
+        <div class="info-total" id="resumen-cantidad">0 productos</div>
+        <div class="monto-total" id="resumen-total">$0</div>
+    </div>
+    <button class="btn-enviar" id="btn-enviar" onclick="enviarPedido()" disabled>📲 Enviar pedido</button>
+</div>
+
+<script>
+    function id(x) { return document.getElementById(x); }
+
+    let cart = { items: {}, total: 0 };
+
+    function renderMenu() {
+        const grid = id('menu-grid');
+        grid.innerHTML = Object.entries(MENU).map(([nombre, precio]) => `
+            <div class="menu-item">
+                <div class="nombre">${nombre}</div>
+                <div class="precio">$${precio}</div>
+                <div id="ctrl-${claveSegura(nombre)}">
+                    <button class="btn-add" onclick="addItem('${nombre}', ${precio})">+ Agregar</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function claveSegura(nombre) { return nombre.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+    function addItem(nombre, precio) {
+        // Se agrupa con una fila existente del mismo producto que aún no tenga nota
+        const existingKey = Object.keys(cart.items).find(k =>
+            cart.items[k].nombre === nombre && cart.items[k].nota === ''
+        );
+        if (existingKey) {
+            cart.items[existingKey].qty += 1;
+        } else {
+            const key = `${nombre}__${Date.now()}`;
+            cart.items[key] = { qty: 1, precio, nota: '', nombre };
+        }
+        recalcularTotal();
+        renderCarrito();
+        renderMenuControls();
+    }
+
+    function changeQty(key, delta) {
+        if (!cart.items[key]) return;
+        cart.items[key].qty += delta;
+        if (cart.items[key].qty <= 0) delete cart.items[key];
+        recalcularTotal();
+        renderCarrito();
+        renderMenuControls();
+    }
+
+    function actualizarNota(key, valor) {
+        if (cart.items[key]) cart.items[key].nota = valor;
+    }
+
+    function recalcularTotal() {
+        cart.total = Object.values(cart.items).reduce((s, d) => s + d.qty * d.precio, 0);
+    }
+
+    function renderMenuControls() {
+        // Muestra un contador +/- debajo de cada producto del menú que ya esté en el carrito
+        const totalesPorNombre = {};
+        Object.values(cart.items).forEach(it => {
+            totalesPorNombre[it.nombre] = (totalesPorNombre[it.nombre] || 0) + it.qty;
+        });
+        Object.keys(MENU).forEach(nombre => {
+            const el = id(`ctrl-${claveSegura(nombre)}`);
+            if (!el) return;
+            const cantidad = totalesPorNombre[nombre] || 0;
+            if (cantidad > 0) {
+                el.innerHTML = `<button class="btn-add" onclick="addItem('${nombre}', ${MENU[nombre]})">+ Agregar otro (${cantidad} en tu pedido)</button>`;
+            } else {
+                el.innerHTML = `<button class="btn-add" onclick="addItem('${nombre}', ${MENU[nombre]})">+ Agregar</button>`;
+            }
+        });
+    }
+
+    function renderCarrito() {
+        const cont = id('carrito-lista');
+        const entries = Object.entries(cart.items);
+
+        // Guardar el valor actual de las notas antes de re-dibujar
+        entries.forEach(([key]) => {
+            const notaEl = id(`nota-${key.replace(/[^a-zA-Z0-9]/g,'_')}`);
+            if (notaEl) cart.items[key].nota = notaEl.value;
+        });
+
+        if (entries.length === 0) {
+            cont.innerHTML = '<div class="carrito-empty">Todavía no has agregado nada</div>';
+        } else {
+            cont.innerHTML = entries.map(([key, it]) => {
+                const claveDom = key.replace(/[^a-zA-Z0-9]/g,'_');
+                return `
+                <div class="carrito-row" style="flex-direction:column; align-items:stretch;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="info">
+                            <b>${it.nombre}</b>
+                            <div class="sub-precio">$${it.precio} c/u</div>
+                        </div>
+                        <div class="qty-control">
+                            <button onclick="changeQty('${key}', -1)">−</button>
+                            <span>${it.qty}</span>
+                            <button onclick="changeQty('${key}', 1)">+</button>
+                        </div>
+                    </div>
+                    <input class="nota-input" id="nota-${claveDom}" type="text"
+                           placeholder="Nota (ej. sin cebolla, extra salsa)..."
+                           value="${it.nota}" oninput="actualizarNota('${key}', this.value)">
+                </div>`;
+            }).join('');
+        }
+
+        id('resumen-cantidad').textContent = `${Object.values(cart.items).reduce((s,d)=>s+d.qty,0)} producto(s)`;
+        id('resumen-total').textContent = `$${cart.total}`;
+        id('btn-enviar').disabled = entries.length === 0;
+    }
+
+    function toggleCampos() {
+        const tipo = id('c-tipo').value;
+        id('wrap-direccion').style.display = tipo === 'domicilio' ? 'block' : 'none';
+        id('wrap-mesa').style.display = tipo === 'mesa' ? 'block' : 'none';
+    }
+
+    function enviarPedido() {
+        const nombre = id('c-nombre').value.trim();
+        const tel = id('c-tel').value.trim();
+        const pago = id('c-pago').value;
+        const tipo = id('c-tipo').value;
+        const direccion = id('c-direccion').value.trim();
+        const mesa = id('c-mesa').value.trim();
+
+        if (Object.keys(cart.items).length === 0) return alert('Agrega al menos un producto a tu pedido');
+        if (!nombre) return alert('Escribe tu nombre y apellido');
+        if (!tel || tel.length < 10) return alert('Escribe tu número de WhatsApp (10 dígitos)');
+        if (tipo === 'domicilio' && !direccion) return alert('Escribe tu dirección completa');
+        if (tipo === 'mesa' && !mesa) return alert('Escribe tu número de mesa');
+
+        const itemsTexto = Object.values(cart.items).map(it => {
+            const nota = it.nota ? ` (${it.nota})` : '';
+            return `${it.qty}x ${it.nombre}${nota}`;
+        }).join(', ');
+
+        let tipoTexto = 'Recojo en tienda';
+        if (tipo === 'domicilio') tipoTexto = 'Es a domicilio';
+        else if (tipo === 'mesa') tipoTexto = 'Comer aquí';
+
+        let mensaje =
+`🎫 *NUEVO PEDIDO*
+
+Nombre y apellido: ${nombre}
+Pedido: ${itemsTexto}
+Forma de pago: ${pago}
+¿Recoges en tienda o es a domicilio?: ${tipoTexto}
+Si es a domicilio, tu dirección completa: ${tipo === 'domicilio' ? direccion : ''}`;
+
+        if (tipo === 'mesa') mensaje += `\nMesa: ${mesa}`;
+
+        mensaje += `\nWhatsApp: ${tel}
+
+💰 Total: $${cart.total} MXN`;
+
+        const url = `https://wa.me/${NUMERO_NEGOCIO_WHATSAPP}?text=${encodeURIComponent(mensaje)}`;
+        window.location.href = url;
+    }
+
+    id('nombre-negocio-header').textContent = NOMBRE_NEGOCIO;
+    document.title = `${NOMBRE_NEGOCIO} — Haz tu pedido`;
+    renderMenu();
+</script>
+</body>
+</html>

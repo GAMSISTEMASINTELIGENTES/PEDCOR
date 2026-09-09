@@ -2,10 +2,12 @@
 // Permite instalar la app como PWA y que funcione sin conexión a internet
 // una vez que se cargó por primera vez.
 
-const CACHE_NAME = 'pedcor-v1';
+const CACHE_NAME = 'pedcor-v2';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './pedido.html',
+    './menu-config.js',
     './manifest.json',
     './assets/icon-192.png',
     './assets/icon-512.png',
