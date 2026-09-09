@@ -16,7 +16,7 @@ const NUMERO_NEGOCIO_WHATSAPP = '5213131003452';
 // Es necesaria porque en la versión de escritorio (Electron) no hay una URL
 // real — así el botón de "Enviar menú" siempre manda el link correcto,
 // sin importar si se usa desde la app web o desde la de escritorio.
-const URL_MENU_PUBLICO = 'https://github.com/GAMSISTEMASINTELIGENTES/PEDCOR';
+const URL_MENU_PUBLICO = 'https://gamsistemasinteligentes.github.io/PEDCOR/pedido.html';
 
 const MENU = {
     // Tacos chicos
