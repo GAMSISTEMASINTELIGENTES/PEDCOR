@@ -105,6 +105,7 @@
         /* ===== IMPRESIÓN DE TICKETS ===== */
         #print-area { display: none; }
         @media print {
+            @page { margin: 0; }
             body * { visibility: hidden; }
             #print-area, #print-area * { visibility: visible; }
             #print-area { display: block; position: absolute; top: 0; left: 0; width: 100%; }
@@ -862,7 +863,7 @@
         const itemsFormato = p.orden.split(', ').join('\n');
 
         let html = `
-            <div style="font-family:'Courier New',monospace; width:280px; margin:0 auto; padding:12px; font-size:13px; color:#000;">
+            <div style="font-family:'Courier New',monospace; width:100%; max-width:300px; margin:0 auto; padding:12px; font-size:13px; color:#000; box-sizing:border-box;">
                 <div style="text-align:center; font-weight:bold; font-size:16px;">${NOMBRE_NEGOCIO}</div>
                 <div style="text-align:center; font-size:11px; margin-bottom:8px; font-weight:bold;">${tipo === 'cocina' ? '★ TICKET DE COCINA ★' : 'TICKET DE CLIENTE'}</div>
                 <div>--------------------------------</div>
