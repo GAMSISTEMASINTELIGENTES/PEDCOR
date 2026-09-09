@@ -923,20 +923,17 @@
     const NUMERO_CUENTA = '000000000000000000'; // CLABE o número de cuenta
 
     function copyMenuMsg() {
-        const n = localStorage.getItem('gam_wa_phone') || id('wa-phone').value.trim();
-        if(!n) return alert("Guarda un número primero");
-        // ✅ Ahora se manda el LINK al menú interactivo (pedido.html) en vez del
-        // formulario de texto — el cliente selecciona del menú y el pedido
-        // regresa ya formado, sin que tenga que escribir nada a mano.
-        const linkPedido = URL_MENU_PUBLICO;
+        // ✅ Simplificado: ya no envuelve el link en un wa.me (eso era para que TÚ lo abrieras,
+        // no para dárselo al cliente). Ahora copia directo el mensaje con el link del menú,
+        // listo para pegar en la conversación de WhatsApp que ya tienes con el cliente —
+        // así el cliente solo lo abre, sin pasos extra.
         const msg =
 `🌮 ¡Hola! Aquí puedes ver el menú y armar tu pedido:
-${linkPedido}
+${URL_MENU_PUBLICO}
 
 Selecciona lo que quieras, llena tus datos, y al final se te genera tu pedido listo para enviarlo por WhatsApp 😉`;
-        const u = `https://wa.me/${n}?text=${encodeURIComponent(msg)}`;
-        navigator.clipboard.writeText(u);
-        notify("🌮 Link del Menú Copiado");
+        navigator.clipboard.writeText(msg);
+        notify("🌮 Mensaje con el link copiado — pégalo en WhatsApp");
     }
 
     function copyWALink() {
