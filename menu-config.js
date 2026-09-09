@@ -10,7 +10,7 @@ const NOMBRE_NEGOCIO = 'TAQUERÍA EL DIRECTOR';
 // Número de WhatsApp del NEGOCIO (a donde llegan los pedidos que
 // los clientes hacen desde el link del menú). Formato: código de
 // país + número, sin espacios ni signos. Ej. México: 521XXXXXXXXXX
-const NUMERO_NEGOCIO_WHATSAPP = '5213131003452';
+const NUMERO_NEGOCIO_WHATSAPP = '523339019091';
 
 // ✏️ EDITA AQUÍ: la URL pública donde publicaste pedido.html (GitHub Pages).
 // Es necesaria porque en la versión de escritorio (Electron) no hay una URL
