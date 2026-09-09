@@ -268,7 +268,12 @@
                     <tbody id="hist-body"></tbody>
                 </table>
             </div>
-            <div style="text-align:right; margin-top:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:8px;">
+                <div>
+                    <button onclick="exportarRespaldo()" style="color:#0f172a; background:none; border:none; cursor:pointer; font-size:0.75rem; text-decoration:underline; padding:0; margin-right:14px;">⬇️ Exportar respaldo</button>
+                    <button onclick="id('input-importar').click()" style="color:#0f172a; background:none; border:none; cursor:pointer; font-size:0.75rem; text-decoration:underline; padding:0;">⬆️ Importar respaldo</button>
+                    <input type="file" id="input-importar" accept=".json" style="display:none;" onchange="importarRespaldo(event)">
+                </div>
                 <button onclick="clearHistory()" style="color:#e11d48; background:none; border:none; cursor:pointer; font-size:0.75rem;">Limpiar Historial del Día</button>
             </div>
         </div>
@@ -1020,6 +1025,69 @@ Cuenta/CLABE: ${NUMERO_CUENTA}
     }
 
     function clearHistory() { if(confirm("¿Borrar historial de hoy?")) { auditoria = []; save(); } }
+
+    // ✅ NUEVO: Respaldo — exportar e importar toda la información (pedidos + historial)
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function exportarRespaldo() {
+        const datos = {
+            app: 'PEDCOR',
+            version: 1,
+            exportado: new Date().toISOString(),
+            pedidos: pedidos,
+            auditoria: auditoria,
+            waPhone: localStorage.getItem('gam_wa_phone') || null,
+        };
+        const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        // Nombre del archivo con fecha y hora, ej. PEDCOR-respaldo-2026-09-09_21-15-03.json
+        const ahora = new Date();
+        const fecha = `${ahora.getFullYear()}-${pad2(ahora.getMonth() + 1)}-${pad2(ahora.getDate())}`;
+        const hora = `${pad2(ahora.getHours())}-${pad2(ahora.getMinutes())}-${pad2(ahora.getSeconds())}`;
+        const nombreArchivo = `PEDCOR-respaldo-${fecha}_${hora}.json`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nombreArchivo;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        notify("💾 Respaldo descargado");
+    }
+
+    function importarRespaldo(event) {
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+        const lector = new FileReader();
+        lector.onload = (e) => {
+            try {
+                const datos = JSON.parse(e.target.result);
+                if (!datos || !Array.isArray(datos.pedidos) || !Array.isArray(datos.auditoria)) {
+                    alert("Este archivo no parece ser un respaldo válido de PEDCOR.");
+                    return;
+                }
+                const totalActual = pedidos.length + auditoria.length;
+                const totalNuevo = datos.pedidos.length + datos.auditoria.length;
+                const mensaje = totalActual > 0
+                    ? `Esto va a REEMPLAZAR tus datos actuales (${totalActual} registros) con los del respaldo (${totalNuevo} registros). Esta acción no se puede deshacer. ¿Continuar?`
+                    : `¿Importar ${totalNuevo} registros del respaldo?`;
+                if (!confirm(mensaje)) return;
+
+                pedidos = datos.pedidos;
+                auditoria = datos.auditoria;
+                if (datos.waPhone) localStorage.setItem('gam_wa_phone', datos.waPhone);
+                save();
+                loadWAPhone();
+                notify("✅ Respaldo importado con éxito");
+            } catch (err) {
+                alert("No se pudo leer el archivo. Asegúrate de que sea un respaldo válido de PEDCOR (.json).");
+            }
+            event.target.value = ''; // permite volver a importar el mismo archivo si hace falta
+        };
+        lector.readAsText(archivo);
+    }
 
     setInterval(render, 30000);
     loadWAPhone();
