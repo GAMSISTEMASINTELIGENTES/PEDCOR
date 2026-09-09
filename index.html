@@ -102,6 +102,14 @@
         .plato-group-label { color: #93c5fd; font-size: 0.72rem; font-weight: bold; margin-bottom: 6px; padding-left: 2px; }
         .cart-empty { color: #64748b; font-size: 0.75rem; text-align: center; padding: 10px 0; }
 
+        /* ===== IMPRESIÓN DE TICKETS ===== */
+        #print-area { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { display: block; position: absolute; top: 0; left: 0; width: 100%; }
+        }
+
         .app-footer { text-align: center; padding: 18px 0 6px; color: #94a3b8; font-size: 0.75rem; letter-spacing: 0.3px; }
         .app-footer b { color: #64748b; }
 
@@ -136,6 +144,7 @@
 <body>
 
 <div id="toast">Operación Exitosa</div>
+<div id="print-area"></div>
 
 <div class="top-nav">
     <div class="wa-box">
@@ -790,6 +799,10 @@
                     ${p.estado==='new'?'INICIAR COCINA':p.estado==='cook'?'MARCAR LISTO':'FINALIZAR'}
                 </button>
                 <button class="btn-flow" style="background:#64748b; margin-top:6px;" onclick="editarPedido('${p.id}')">✏️ Editar / Agregar más</button>
+                <div style="display:flex; gap:4px; margin-top:6px;">
+                    <button class="btn-flow" style="background:#475569; flex:1; margin-top:0; font-size:0.68rem; padding:8px 4px;" onclick="imprimirTicket('${p.id}','cocina')">🖨️ Cocina</button>
+                    <button class="btn-flow" style="background:#475569; flex:1; margin-top:0; font-size:0.68rem; padding:8px 4px;" onclick="imprimirTicket('${p.id}','cliente')">🖨️ Cliente</button>
+                </div>
                 <button class="btn-cancel" onclick="cancelar('${p.id}')">✕ Cancelar pedido</button>`;
             cols[p.estado].appendChild(ticket);
         });
@@ -806,6 +819,7 @@
                 : a.tel
                     ? `<button class="btn-msg" onclick='resend(${JSON.stringify(a)})'>📲 Enviar WA</button>`
                     : `<button class="btn-msg-no-phone" title="Sin teléfono registrado" onclick='resend(${JSON.stringify(a)})'>Reenviar</button>`;
+            const btnImprimir = cancelado ? '' : `<button class="btn-msg-no-phone" style="margin-left:4px;" onclick='imprimirTicketConDatos(${JSON.stringify(a)}, "cliente")'>🖨️</button>`;
 
             if (cancelado) row.className = 'row-cancelado';
             let entregaCell;
@@ -820,7 +834,7 @@
                              <td style="font-size:0.75rem; max-width:150px;">${entregaCell}</td>
                              <td style="font-size:0.75rem; max-width:200px;">${a.orden}</td>
                              <td>$${a.monto}</td><td>${a.pago}</td>
-                             <td>${btnHtml}</td>`;
+                             <td>${btnHtml}${btnImprimir}</td>`;
         });
         updateStats();
     }
@@ -839,6 +853,55 @@
     }
 
     // ✅ Nueva función resend: abre WhatsApp Web si hay teléfono, si no copia al portapapeles
+    // ✅ NUEVO: Construye el HTML del ticket para imprimir (cocina o cliente)
+    function construirTicketImpresion(p, tipo) {
+        let entregaTxt = '🏠 RECOGE EN TIENDA';
+        if (p.tipo === 'domicilio') entregaTxt = `🛵 A DOMICILIO: ${p.domicilio || 'sin dirección'}`;
+        else if (p.tipo === 'mesa') entregaTxt = `🍽️ MESA ${p.mesa || '-'}`;
+
+        const itemsFormato = p.orden.split(', ').join('\n');
+
+        let html = `
+            <div style="font-family:'Courier New',monospace; width:280px; margin:0 auto; padding:12px; font-size:13px; color:#000;">
+                <div style="text-align:center; font-weight:bold; font-size:16px;">${NOMBRE_NEGOCIO}</div>
+                <div style="text-align:center; font-size:11px; margin-bottom:8px; font-weight:bold;">${tipo === 'cocina' ? '★ TICKET DE COCINA ★' : 'TICKET DE CLIENTE'}</div>
+                <div>--------------------------------</div>
+                <div><b>Cliente:</b> ${p.cliente}</div>
+                <div><b>Hora:</b> ${p.recogida} &nbsp; <b>Reg:</b> ${p.h_reg || ''}</div>
+                <div style="margin-top:4px; font-weight:bold;">${entregaTxt}</div>
+                <div>--------------------------------</div>
+                <div style="white-space:pre-line; margin:8px 0; font-size:14px;">${itemsFormato}</div>
+                <div>--------------------------------</div>`;
+
+        if (tipo === 'cliente') {
+            html += `
+                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:15px; margin-top:6px;">
+                    <span>TOTAL:</span><span>$${p.monto} MXN</span>
+                </div>
+                <div style="margin-top:2px;">Pago: ${p.pago}</div>
+                <div style="text-align:center; margin-top:14px;">¡Gracias por tu preferencia!</div>`;
+        } else {
+            html += `<div style="font-size:11px; margin-top:4px;">Pago: ${p.pago}</div>`;
+        }
+
+        html += `
+                <div style="text-align:center; font-size:9px; margin-top:14px; color:#333;">PEDCOR — GAM SISTEMAS INTELIGENTES</div>
+            </div>`;
+        return html;
+    }
+
+    // ✅ NUEVO: Manda a imprimir un ticket ya con los datos (usado desde historial)
+    function imprimirTicketConDatos(p, tipo) {
+        id('print-area').innerHTML = construirTicketImpresion(p, tipo);
+        window.print();
+    }
+
+    // ✅ NUEVO: Imprime un ticket buscando el pedido activo por id (usado desde el kanban)
+    function imprimirTicket(pid, tipo) {
+        const p = pedidos.find(x => x.id == pid);
+        if (p) imprimirTicketConDatos(p, tipo);
+    }
+
     function resend(p) {
         const entregaInfo = p.tipo === 'domicilio'
             ? `\n🛵 Envío a: ${p.domicilio || 'domicilio registrado'}`
